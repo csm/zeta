@@ -6,56 +6,133 @@
 <title>&zeta; — Riemann zeta explorer (Clojurust/wasm)</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    color-scheme: dark light;
+    --page-bg: #16161d;
+    --panel-bg: #1f1f28;
+    --input-bg: #12121a;
+    --text: #d4d4d4;
+    --muted: #808090;
+    --label: #9a9aac;
+    --border: #34343f;
+    --input-border: #3c3c46;
+    --title: #9cdcfe;
+    --accent: #c586c0;
+    --status: #dcdcaa;
+    --ready: #6a9955;
+    --error: #f44747;
+    --button-bg: #2d4f6b;
+    --button-hover: #38648a;
+    --button-text: #e8e8e8;
+    --canvas-bg: #ffffff;
+    --help-bg: #2a2020;
+    --help-border: #6b3b3b;
+    --code: #ce9178;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --page-bg: #fdf6e3;
+    --panel-bg: #eee8d5;
+    --input-bg: #fdf6e3;
+    --text: #586e75;
+    --muted: #839496;
+    --label: #657b83;
+    --border: #d6ceb8;
+    --input-border: #c9bea5;
+    --title: #268bd2;
+    --accent: #6c71c4;
+    --status: #b58900;
+    --ready: #859900;
+    --error: #dc322f;
+    --button-bg: #268bd2;
+    --button-hover: #2aa198;
+    --button-text: #fdf6e3;
+    --canvas-bg: #fffdf4;
+    --help-bg: #f5e7d0;
+    --help-border: #cb4b16;
+    --code: #cb4b16;
+  }
+  :root[data-theme="dark"] { color-scheme: dark; }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme]) {
+      color-scheme: light;
+      --page-bg: #fdf6e3;
+      --panel-bg: #eee8d5;
+      --input-bg: #fdf6e3;
+      --text: #586e75;
+      --muted: #839496;
+      --label: #657b83;
+      --border: #d6ceb8;
+      --input-border: #c9bea5;
+      --title: #268bd2;
+      --accent: #6c71c4;
+      --status: #b58900;
+      --ready: #859900;
+      --error: #dc322f;
+      --button-bg: #268bd2;
+      --button-hover: #2aa198;
+      --button-text: #fdf6e3;
+      --canvas-bg: #fffdf4;
+      --help-bg: #f5e7d0;
+      --help-border: #cb4b16;
+      --code: #cb4b16;
+    }
+  }
   body {
-    background: #16161d; color: #d4d4d4;
+    background: var(--page-bg); color: var(--text);
     font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
     font-size: 14px; min-height: 100vh;
   }
   header {
-    background: #1f1f28; border-bottom: 1px solid #3c3c3c;
+    background: var(--panel-bg); border-bottom: 1px solid var(--border);
     padding: 10px 18px; display: flex; align-items: baseline; gap: 14px;
-    position: sticky; top: 0; z-index: 5;
+    position: sticky; top: 0; z-index: 5; flex-wrap: wrap;
   }
-  header h1 { font-size: 16px; color: #9cdcfe; font-weight: 600; }
-  header .sub { font-size: 12px; color: #808090; }
-  #status { font-size: 12px; color: #dcdcaa; margin-left: auto; }
-  #status.ready { color: #6a9955; }
-  #status.error { color: #f44747; }
+  header h1 { font-size: 16px; color: var(--title); font-weight: 600; }
+  header .sub { font-size: 12px; color: var(--muted); }
+  #status { font-size: 12px; color: var(--status); margin-left: auto; }
+  #status.ready { color: var(--ready); }
+  #status.error { color: var(--error); }
+  .theme-picker { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--label); }
+  .theme-picker select {
+    background: var(--input-bg); color: var(--text); border: 1px solid var(--input-border);
+    border-radius: 4px; padding: 4px 6px; font: inherit; font-size: 12px;
+  }
   main { max-width: 1060px; margin: 0 auto; padding: 18px; }
   section {
-    background: #1f1f28; border: 1px solid #34343f; border-radius: 8px;
+    background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px;
     margin-bottom: 18px; padding: 14px 16px;
   }
-  section h2 { font-size: 14px; color: #c586c0; margin-bottom: 4px; }
-  section p.hint { font-size: 12px; color: #7a7a8a; margin-bottom: 10px; }
+  section h2 { font-size: 14px; color: var(--accent); margin-bottom: 4px; }
+  section p.hint { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
   .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
-  .controls label { font-size: 12px; color: #9a9aac; }
+  .controls label { font-size: 12px; color: var(--label); }
   .controls input, .controls select {
-    background: #12121a; color: #d4d4d4; border: 1px solid #3c3c46;
+    background: var(--input-bg); color: var(--text); border: 1px solid var(--input-border);
     border-radius: 4px; padding: 4px 6px; width: 84px; font: inherit; font-size: 12px;
   }
   button {
-    background: #2d4f6b; color: #e8e8e8; border: none; border-radius: 4px;
+    background: var(--button-bg); color: var(--button-text); border: none; border-radius: 4px;
     padding: 5px 14px; font: inherit; font-size: 12px; cursor: pointer;
   }
-  button:hover:not(:disabled) { background: #38648a; }
+  button:hover:not(:disabled) { background: var(--button-hover); }
   button:disabled { opacity: 0.45; cursor: default; }
-  .canvas { background: #ffffff; border-radius: 4px; overflow: auto; min-height: 40px; }
+  .canvas { background: var(--canvas-bg); border-radius: 4px; overflow: auto; min-height: 40px; }
   .canvas svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
-  #readout { font-size: 12px; color: #9cdcfe; margin-top: 8px; min-height: 1.2em; }
+  #readout { font-size: 12px; color: var(--title); margin-top: 8px; min-height: 1.2em; }
   #zeros-out, #repl-out {
-    background: #12121a; border: 1px solid #3c3c46; border-radius: 4px;
+    background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 4px;
     padding: 8px 10px; font-size: 12px; white-space: pre-wrap; margin-top: 8px;
     max-height: 220px; overflow-y: auto;
   }
   textarea#repl-in {
-    width: 100%; background: #12121a; color: #d4d4d4; border: 1px solid #3c3c46;
+    width: 100%; background: var(--input-bg); color: var(--text); border: 1px solid var(--input-border);
     border-radius: 4px; padding: 8px 10px; font: inherit; font-size: 12px; min-height: 64px;
   }
-  .err { color: #f44747; }
-  #setup-help { display: none; background: #2a2020; border: 1px solid #6b3b3b;
+  .err { color: var(--error); }
+  #setup-help { display: none; background: var(--help-bg); border: 1px solid var(--help-border);
     border-radius: 8px; padding: 14px 16px; margin-bottom: 18px; font-size: 13px; line-height: 1.5; }
-  #setup-help code { color: #ce9178; }
+  #setup-help code { color: var(--code); }
 </style>
 </head>
 <body>
@@ -63,6 +140,13 @@
   <h1>&zeta;(s) explorer</h1>
   <span class="sub">Riemann zeta &middot; analytic continuation &middot; running as Clojure on Clojurust/wasm</span>
   <span id="status">loading wasm&hellip;</span>
+  <label class="theme-picker">theme
+    <select id="theme-mode" aria-label="Color theme">
+      <option value="auto">Auto</option>
+      <option value="light">Light</option>
+      <option value="dark">Dark</option>
+    </select>
+  </label>
 </header>
 <main>
   <div id="setup-help">
@@ -140,6 +224,20 @@
 
 <script type="module">
 const status = document.getElementById('status');
+const themeMode = document.getElementById('theme-mode');
+const savedTheme = localStorage.getItem('zeta-theme') || 'auto';
+function applyTheme(mode) {
+  if (mode === 'auto') {
+    document.documentElement.removeAttribute('data-theme');
+    localStorage.removeItem('zeta-theme');
+  } else {
+    document.documentElement.dataset.theme = mode;
+    localStorage.setItem('zeta-theme', mode);
+  }
+}
+themeMode.value = ['auto', 'light', 'dark'].includes(savedTheme) ? savedTheme : 'auto';
+applyTheme(themeMode.value);
+themeMode.addEventListener('change', () => applyTheme(themeMode.value));
 const buttons = ['sp-draw','sp-anim','cr-draw','dm-draw','zr-find','repl-run']
   .map(id => document.getElementById(id));
 const $ = id => document.getElementById(id);
