@@ -53,18 +53,28 @@ async function fetchSource(name) {
     ' — serve the repository root, not just www/');
 }
 
+async function loadLibrary() {
+  const files = ['complex.cljc', 'gamma.cljc', 'core.cljc', 'viz.cljc'];
+  const sources = [];
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    post('progress', { message: 'fetching ' + f + '…', value: i, max: files.length * 2 });
+    sources.push([f, await fetchSource(f)]);
+  }
+
+  for (let i = 0; i < sources.length; i++) {
+    const [f, src] = sources[i];
+    post('progress', { message: 'loading ' + f + '…', value: files.length + i, max: files.length * 2 });
+    await ev(adaptForRepl(src));
+  }
+}
+
 async function boot() {
   post('status', { message: 'loading wasm…' });
   const mod = await import('./pkg/cljrs_wasm.js');
   await mod.default();
   repl = new mod.Repl();
-  const files = ['complex.cljc', 'gamma.cljc', 'core.cljc', 'viz.cljc'];
-  for (let i = 0; i < files.length; i++) {
-    const f = files[i];
-    post('progress', { message: 'loading ' + f + '…', value: i, max: files.length });
-    const src = await fetchSource(f);
-    await ev(adaptForRepl(src));
-  }
+  await loadLibrary();
   post('ready');
 }
 

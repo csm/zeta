@@ -254,14 +254,14 @@ const num = id => parseFloat($(id).value);
 const activity = $('activity');
 const progress = $('progress');
 
-let worker = null;
-let workerReady = false;
+let replWorker = null;
+let replWorkerReady = false;
 let nextJobId = 1;
 let animHandle = null;
-const pending = new Map();
+const replPending = new Map();
 
 function setStatus(msg, cls) { status.textContent = msg; status.className = cls || ''; }
-function enable(on) { buttons.forEach(b => b.disabled = !on || !workerReady); $('sp-stop').disabled = !animHandle; }
+function enable(on) { buttons.forEach(b => b.disabled = !on || !replWorkerReady); $('sp-stop').disabled = !animHandle; }
 function setActivity(on, value = null, max = null) {
   activity.classList.toggle('active', on);
   if (!on || value === null || max === null) {
@@ -273,19 +273,57 @@ function setActivity(on, value = null, max = null) {
   }
 }
 
-function ev(code) {
-  if (!workerReady) return Promise.reject(new Error('worker is not ready yet'));
+function evalOnRepl(code) {
+  if (!replWorkerReady) return Promise.reject(new Error('worker is not ready yet'));
   const id = nextJobId++;
-  worker.postMessage({ type: 'eval', id, code });
-  return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+  replWorker.postMessage({ type: 'eval', id, code });
+  return new Promise((resolve, reject) => replPending.set(id, { resolve, reject }));
 }
 
-async function busy(label, code) {
+function runInFreshRuntime(code) {
+  const demoWorker = new Worker('./worker.js', { type: 'module' });
+  let finished = false;
+  const id = nextJobId++;
+
+  return new Promise((resolve, reject) => {
+    const fail = e => {
+      if (finished) return;
+      finished = true;
+      demoWorker.terminate();
+      reject(e instanceof Error ? e : new Error(String(e.message || e)));
+    };
+
+    demoWorker.onmessage = event => {
+      const msg = event.data;
+      if (msg.type === 'status') {
+        setStatus(msg.message, 'loading');
+        setActivity(true);
+      } else if (msg.type === 'progress') {
+        setStatus(msg.message, 'loading');
+        setActivity(true, msg.value, msg.max);
+      } else if (msg.type === 'ready') {
+        demoWorker.postMessage({ type: 'eval', id, code });
+      } else if (msg.type === 'boot-error') {
+        document.getElementById('setup-help').style.display = 'block';
+        fail(new Error(msg.message));
+      } else if ((msg.type === 'result' || msg.type === 'error') && msg.id === id) {
+        finished = true;
+        demoWorker.terminate();
+        if (msg.type === 'result') resolve({ output: msg.output, result: msg.result });
+        else reject(new Error(msg.message));
+      }
+    };
+
+    demoWorker.onerror = event => fail(new Error(event.message));
+  });
+}
+
+async function busy(label, code, options = {}) {
   setStatus(label + '…', 'loading');
   setActivity(true);
   enable(false);
   try {
-    const r = await ev(code);
+    const r = options.persistent ? await evalOnRepl(code) : await runInFreshRuntime(code);
     setStatus('ready — Clojurust wasm worker', 'ready');
     return r;
   } catch (e) {
@@ -297,7 +335,7 @@ async function busy(label, code) {
   }
 }
 
-function handleWorkerMessage(event) {
+function handleReplWorkerMessage(event) {
   const msg = event.data;
   if (msg.type === 'status') {
     setStatus(msg.message, 'loading');
@@ -306,7 +344,7 @@ function handleWorkerMessage(event) {
     setStatus(msg.message, 'loading');
     setActivity(true, msg.value, msg.max);
   } else if (msg.type === 'ready') {
-    workerReady = true;
+    replWorkerReady = true;
     setActivity(false);
     enable(true);
     setStatus('ready — Clojurust wasm worker', 'ready');
@@ -316,9 +354,9 @@ function handleWorkerMessage(event) {
     setStatus('wasm worker failed: ' + msg.message, 'error');
     $('repl-out').textContent = msg.message;
   } else if (msg.type === 'result' || msg.type === 'error') {
-    const job = pending.get(msg.id);
+    const job = replPending.get(msg.id);
     if (!job) return;
-    pending.delete(msg.id);
+    replPending.delete(msg.id);
     if (msg.type === 'result') job.resolve({ output: msg.output, result: msg.result });
     else job.reject(new Error(msg.message));
   }
@@ -327,9 +365,9 @@ function handleWorkerMessage(event) {
 function boot() {
   setActivity(true);
   enable(false);
-  worker = new Worker('./worker.js', { type: 'module' });
-  worker.onmessage = handleWorkerMessage;
-  worker.onerror = event => {
+  replWorker = new Worker('./worker.js', { type: 'module' });
+  replWorker.onmessage = handleReplWorkerMessage;
+  replWorker.onerror = event => {
     setActivity(false);
     document.getElementById('setup-help').style.display = 'block';
     setStatus('wasm worker failed: ' + event.message, 'error');
@@ -427,7 +465,7 @@ $('zr-find').onclick = async () => {
 $('repl-run').onclick = async () => {
   const code = $('repl-in').value;
   try {
-    const { output, result } = await busy('evaluating', code);
+    const { output, result } = await busy('evaluating', code, { persistent: true });
     $('repl-out').textContent = (output ? output + '\n' : '') + '=> ' + result;
     $('repl-out').classList.remove('err');
   } catch (e) {
