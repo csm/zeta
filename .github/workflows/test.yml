@@ -1,0 +1,93 @@
+name: Tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/test.yml
+      - src/**
+      - test/**
+      - cljrs.edn
+      - deps.edn
+      - main.cljrs
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  jvm:
+    name: Clojure (JVM)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Clojure CLI
+        uses: DeLaGuardo/setup-clojure@13.4
+        with:
+          cli: latest
+
+      - name: Cache Clojure deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.gitlibs
+          key: clojure-deps-${{ hashFiles('deps.edn') }}
+
+      - name: Run tests
+        run: clojure -M:test -m zeta.test-main
+
+      - name: Smoke-test the CLI
+        run: |
+          set -euxo pipefail
+          clojure -M:cli value 2 | grep -F '1.64493'
+          clojure -M:cli spiral 0 30 spiral.svg
+          grep -F '<svg' spiral.svg
+
+  clojurust:
+    name: Clojurust (cljrs)
+    runs-on: ubuntu-latest
+
+    env:
+      CLJRS_VERSION: 0.1.223
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cljrs binary
+        id: cache-cljrs
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cljrs
+          key: cljrs-${{ env.CLJRS_VERSION }}-${{ runner.os }}
+
+      - name: Install cljrs
+        if: steps.cache-cljrs.outputs.cache-hit != 'true'
+        run: cargo install cljrs --version "${CLJRS_VERSION}" --locked
+
+      - name: Run tests
+        run: >
+          cljrs test --src-path src --src-path test
+          zeta.complex-test zeta.gamma-test zeta.core-test zeta.viz-test
+
+      - name: Smoke-test the CLI
+        run: |
+          set -euxo pipefail
+          cljrs run --src-path src main.cljrs -- value 2 | grep -F '1.64493'
+          cljrs run --src-path src main.cljrs -- spiral 0 30 spiral.svg
+          grep -F '<svg' spiral.svg
