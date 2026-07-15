@@ -62,34 +62,60 @@
     (mapv (fn [i] (+ a (* i step))) (range n))))
 
 ;; ---------------------------------------------------------------------------
-;; The critical-line spiral: t -> zeta(1/2 + it)
+;; Vertical-line spirals: t -> zeta(re + it)
 ;; ---------------------------------------------------------------------------
 
 (defn spiral-points
-  "Sample zeta(1/2+it) for t in [t0, t1]; returns [{:t t :re x :im y} ...]."
-  [t0 t1 samples]
-  (mapv (fn [t]
-          (let [zt (z/zeta-critical t)]
-            {:t t :re (:re zt) :im (:im zt)}))
-        (linspace t0 t1 samples)))
+  "Sample zeta(sigma+it) for t in [t0, t1]; returns
+  [{:sigma sigma :t t :re x :im y} ...].  The 3-arity keeps the historical
+  critical-line behavior with sigma = 1/2."
+  ([t0 t1 samples]
+   (spiral-points 0.5 t0 t1 samples))
+  ([sigma t0 t1 samples]
+   (mapv (fn [t]
+           (let [zt (z/zeta (c/complex sigma t))]
+             {:sigma sigma :t t :re (:re zt) :im (:im zt)}))
+         (linspace t0 t1 samples))))
+
+(defn- spiral-line
+  [{:keys [sigma re t0 t1 samples stroke label rainbow?]
+    :or {t0 0.0 t1 50.0 samples 1500}}]
+  (let [sigma (if (not (nil? sigma)) sigma (if (not (nil? re)) re 0.5))]
+    {:sigma sigma
+     :t0 t0
+     :t1 t1
+     :samples samples
+     :stroke stroke
+     :rainbow? rainbow?
+     :label (or label (str "&#950;(" (fmt sigma) " + it)"))
+     :points (spiral-points sigma t0 t1 samples)}))
 
 (defn spiral-svg
-  "SVG of the curve t -> zeta(1/2 + it) in the complex plane.
+  "SVG of one or more curves t -> zeta(sigma + it) in the complex plane.
 
-  The curve passes exactly through the origin at every nontrivial zero
-  (marked by the crosshair).  Segments are colored by t so you can follow
-  the motion.
+  The default is the Riemann critical-line spiral sigma = 1/2, which passes
+  through the origin at every nontrivial zero.  Pass :re (or :sigma) to draw a
+  different vertical line, or :lines with a collection of option maps to compose
+  multiple spirals into the same SVG.
 
   Options (all optional):
+    :re/:sigma  — real part for the single-line form (default 1/2)
     :t0 :t1     — t range (default 0..50)
     :samples    — number of sample points (default 1500)
+    :lines      — [{:re/:sigma ... :t0 ... :t1 ... :samples ... :stroke ...}]
     :width :height — pixel size (default 720x720)
-    :rainbow?   — color segments by t (default true)"
+    :rainbow?   — color single-line segments by t (default true; disabled for
+                  multi-line graphs unless a line explicitly asks for it)"
   ([] (spiral-svg {}))
-  ([{:keys [t0 t1 samples width height rainbow?]
+  ([{:keys [sigma re t0 t1 samples width height rainbow? lines]
      :or {t0 0.0 t1 50.0 samples 1500 width 720 height 720 rainbow? true}}]
-   (let [pts (spiral-points t0 t1 samples)
-         finite (filter (fn [p] (and (= (:re p) (:re p)) (= (:im p) (:im p)))) pts)
+   (let [raw-lines (if (seq lines)
+                     lines
+                     [{:sigma (if (not (nil? sigma)) sigma re)
+                       :t0 t0 :t1 t1 :samples samples}])
+         lines* (mapv spiral-line raw-lines)
+         all-pts (mapcat :points lines*)
+         finite (filter (fn [p] (and (= (:re p) (:re p)) (= (:im p) (:im p)))) all-pts)
          extent (reduce (fn [m p] (max m (Math/abs (:re p)) (Math/abs (:im p))))
                         1.0e-6 finite)
          extent (* 1.08 (min extent 50.0))
@@ -98,42 +124,61 @@
          ->x (fn [re] (+ cx (* k re)))
          ->y (fn [im] (- cy (* k im)))
          xy (fn [p] [(->x (:re p)) (->y (:im p))])
-         buckets 72
-         per (max 2 (int (Math/ceil (/ (double samples) buckets))))
-         segs (if rainbow?
-                (loop [i 0 out ""]
-                  (let [start (* i per)]
-                    (if (>= start (dec (count pts)))
-                      out
-                      (let [chunk (subvec pts start (min (count pts) (+ start per 1)))
-                            hue (Math/round (* 300.0 (/ (double start) samples)))]
-                        (recur (inc i)
-                               (str out
-                                    (polyline (map xy chunk)
-                                              {:stroke (str "hsl(" hue ",75%,45%)")
-                                               :stroke-width 1.4})))))))
-                (polyline (map xy pts) {:stroke "#3366cc" :stroke-width 1.4}))]
+         palette ["#3366cc" "#cc6633" "#22aa66" "#aa44cc" "#ddaa22" "#cc3355"]
+         render-rainbow (fn [pts samples]
+                          (let [buckets 72
+                                per (max 2 (int (Math/ceil (/ (double samples) buckets))))]
+                            (loop [i 0 out ""]
+                              (let [start (* i per)]
+                                (if (>= start (dec (count pts)))
+                                  out
+                                  (let [chunk (subvec pts start (min (count pts) (+ start per 1)))
+                                        hue (Math/round (* 300.0 (/ (double start) samples)))]
+                                    (recur (inc i)
+                                           (str out
+                                                (polyline (map xy chunk)
+                                                          {:stroke (str "hsl(" hue ",75%,45%)")
+                                                           :stroke-width 1.4}))))))))))
+         segs (apply str
+                     (map-indexed
+                      (fn [i line]
+                        (let [pts (:points line)
+                              multi? (> (count lines*) 1)
+                              rainbow-line? (if (nil? (:rainbow? line))
+                                              (and (not multi?) rainbow?)
+                                              (:rainbow? line))
+                              stroke (or (:stroke line) (nth palette (mod i (count palette))))]
+                          (if rainbow-line?
+                            (render-rainbow pts (:samples line))
+                            (polyline (map xy pts) {:stroke stroke :stroke-width 1.4}))))
+                      lines*))
+         markers (apply str
+                        (map-indexed
+                         (fn [i line]
+                           (let [pts (:points line)
+                                 stroke (or (:stroke line) (nth palette (mod i (count palette))))
+                                 p0 (xy (first pts)) p1 (xy (last pts))]
+                             (str (tag "circle" {:cx (fmt (first p0)) :cy (fmt (second p0))
+                                                 :r 3.5 :fill stroke})
+                                  (tag "circle" {:cx (fmt (first p1)) :cy (fmt (second p1))
+                                                 :r 3.5 :fill "#cc3333"}))))
+                         lines*))
+         labels (join-str ", " (map :label lines*))]
      (svg-doc width height
               (tag "rect" {:x 0 :y 0 :width width :height height :fill "#ffffff"})
-              ;; axes
               (tag "line" {:x1 0 :y1 (fmt cy) :x2 width :y2 (fmt cy)
                            :stroke "#cccccc" :stroke-width 1})
               (tag "line" {:x1 (fmt cx) :y1 0 :x2 (fmt cx) :y2 height
                            :stroke "#cccccc" :stroke-width 1})
-              ;; origin crosshair — the zeros thread this point
               (tag "circle" {:cx (fmt cx) :cy (fmt cy) :r 4
                              :fill "none" :stroke "#000000" :stroke-width 1.2})
               (tag "circle" {:cx (fmt cx) :cy (fmt cy) :r 1.2 :fill "#000000"})
               segs
-              ;; start / end markers
-              (let [p0 (xy (first pts)) p1 (xy (last pts))]
-                (str (tag "circle" {:cx (fmt (first p0)) :cy (fmt (second p0))
-                                    :r 3.5 :fill "#22aa44"})
-                     (tag "circle" {:cx (fmt (first p1)) :cy (fmt (second p1))
-                                    :r 3.5 :fill "#cc3333"})))
+              markers
               (tag "text" {:x 10 :y 22 :font-family "sans-serif" :font-size 13
                            :fill "#555555"}
-                   (str "&#950;(1/2 + it),  t &#8712; [" (fmt t0) ", " (fmt t1) "]"))))))
+                   (str labels ",  t &#8712; [" (fmt t0) ", " (fmt t1) "]"))))))
+
 
 ;; ---------------------------------------------------------------------------
 ;; Z(t) and |zeta| along the critical line
