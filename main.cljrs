@@ -1,0 +1,7 @@
+;; Clojurust entry point — `cljrs run` calls `-main` with the args after `--`:
+;;   cljrs run --src-path src main.cljrs -- zeros 1 50
+;;   cljrs run --src-path src main.cljrs -- spiral 0 60 spiral.svg
+(require '[zeta.cli :as cli])
+
+(defn -main [& args]
+  (apply cli/-main args))

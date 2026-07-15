@@ -1,0 +1,5 @@
+{:paths ["src"]
+ :deps {}
+ :main zeta.cli
+ :aliases
+ {:test {:extra-paths ["test"]}}}

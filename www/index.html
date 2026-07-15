@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>&zeta; — Riemann zeta explorer (Clojurust/wasm)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #16161d; color: #d4d4d4;
+    font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+    font-size: 14px; min-height: 100vh;
+  }
+  header {
+    background: #1f1f28; border-bottom: 1px solid #3c3c3c;
+    padding: 10px 18px; display: flex; align-items: baseline; gap: 14px;
+    position: sticky; top: 0; z-index: 5;
+  }
+  header h1 { font-size: 16px; color: #9cdcfe; font-weight: 600; }
+  header .sub { font-size: 12px; color: #808090; }
+  #status { font-size: 12px; color: #dcdcaa; margin-left: auto; }
+  #status.ready { color: #6a9955; }
+  #status.error { color: #f44747; }
+  main { max-width: 1060px; margin: 0 auto; padding: 18px; }
+  section {
+    background: #1f1f28; border: 1px solid #34343f; border-radius: 8px;
+    margin-bottom: 18px; padding: 14px 16px;
+  }
+  section h2 { font-size: 14px; color: #c586c0; margin-bottom: 4px; }
+  section p.hint { font-size: 12px; color: #7a7a8a; margin-bottom: 10px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .controls label { font-size: 12px; color: #9a9aac; }
+  .controls input, .controls select {
+    background: #12121a; color: #d4d4d4; border: 1px solid #3c3c46;
+    border-radius: 4px; padding: 4px 6px; width: 84px; font: inherit; font-size: 12px;
+  }
+  button {
+    background: #2d4f6b; color: #e8e8e8; border: none; border-radius: 4px;
+    padding: 5px 14px; font: inherit; font-size: 12px; cursor: pointer;
+  }
+  button:hover:not(:disabled) { background: #38648a; }
+  button:disabled { opacity: 0.45; cursor: default; }
+  .canvas { background: #ffffff; border-radius: 4px; overflow: auto; min-height: 40px; }
+  .canvas svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+  #readout { font-size: 12px; color: #9cdcfe; margin-top: 8px; min-height: 1.2em; }
+  #zeros-out, #repl-out {
+    background: #12121a; border: 1px solid #3c3c46; border-radius: 4px;
+    padding: 8px 10px; font-size: 12px; white-space: pre-wrap; margin-top: 8px;
+    max-height: 220px; overflow-y: auto;
+  }
+  textarea#repl-in {
+    width: 100%; background: #12121a; color: #d4d4d4; border: 1px solid #3c3c46;
+    border-radius: 4px; padding: 8px 10px; font: inherit; font-size: 12px; min-height: 64px;
+  }
+  .err { color: #f44747; }
+  #setup-help { display: none; background: #2a2020; border: 1px solid #6b3b3b;
+    border-radius: 8px; padding: 14px 16px; margin-bottom: 18px; font-size: 13px; line-height: 1.5; }
+  #setup-help code { color: #ce9178; }
+</style>
+</head>
+<body>
+<header>
+  <h1>&zeta;(s) explorer</h1>
+  <span class="sub">Riemann zeta &middot; analytic continuation &middot; running as Clojure on Clojurust/wasm</span>
+  <span id="status">loading wasm&hellip;</span>
+</header>
+<main>
+  <div id="setup-help">
+    <b>Couldn't load the Clojurust wasm bundle.</b><br>
+    Build it and serve this repo root:<br><br>
+    <code>git clone https://github.com/csm/clojurust &amp;&amp; cd clojurust</code><br>
+    <code>wasm-pack build crates/cljrs-wasm --target web</code><br>
+    <code>cp -r crates/cljrs-wasm/pkg &lt;this-repo&gt;/www/pkg</code><br>
+    <code>cd &lt;this-repo&gt; &amp;&amp; python3 -m http.server 8000</code><br><br>
+    then open <code>http://localhost:8000/www/</code>.
+  </div>
+
+  <section>
+    <h2>The spiral: t &#8614; &zeta;(&frac12; + it)</h2>
+    <p class="hint">The value of zeta along the critical line traces looping curves; at every
+      nontrivial zero the curve passes exactly through the origin (the crosshair).</p>
+    <div class="controls">
+      <label>t&#8320; <input id="sp-t0" type="number" value="0" step="1"></label>
+      <label>t&#8321; <input id="sp-t1" type="number" value="50" step="1"></label>
+      <label>samples <input id="sp-n" type="number" value="700" step="100"></label>
+      <button id="sp-draw" disabled>Draw</button>
+      <button id="sp-anim" disabled>Animate</button>
+      <button id="sp-stop" disabled>Stop</button>
+    </div>
+    <div class="canvas" id="sp-canvas"></div>
+    <div id="readout"></div>
+  </section>
+
+  <section>
+    <h2>Hardy's Z(t) along the critical line</h2>
+    <p class="hint">Z(t) is real with |Z(t)| = |&zeta;(&frac12;+it)|; its sign changes are the zeros (red dots).</p>
+    <div class="controls">
+      <label>t&#8320; <input id="cr-t0" type="number" value="0" step="1"></label>
+      <label>t&#8321; <input id="cr-t1" type="number" value="60" step="1"></label>
+      <button id="cr-draw" disabled>Draw</button>
+    </div>
+    <div class="canvas" id="cr-canvas"></div>
+  </section>
+
+  <section>
+    <h2>Domain coloring</h2>
+    <p class="hint">Hue = arg &zeta;(s), brightness = |&zeta;(s)|. Zeros are black points, the pole at s=1 flares white.
+      The interpreter computes one &zeta; per cell — higher resolutions take a while.</p>
+    <div class="controls">
+      <label>Re <input id="dm-re0" type="number" value="-6" step="1"> to <input id="dm-re1" type="number" value="6" step="1"></label>
+      <label>Im <input id="dm-im0" type="number" value="-16" step="1"> to <input id="dm-im1" type="number" value="16" step="1"></label>
+      <label>grid <select id="dm-n"><option>32</option><option selected>48</option><option>64</option><option>96</option></select></label>
+      <button id="dm-draw" disabled>Render</button>
+    </div>
+    <div class="canvas" id="dm-canvas"></div>
+  </section>
+
+  <section>
+    <h2>Zeros on the critical line</h2>
+    <div class="controls">
+      <label>t&#8320; <input id="zr-t0" type="number" value="1" step="1"></label>
+      <label>t&#8321; <input id="zr-t1" type="number" value="50" step="1"></label>
+      <button id="zr-find" disabled>Find zeros</button>
+    </div>
+    <div id="zeros-out">&nbsp;</div>
+  </section>
+
+  <section>
+    <h2>REPL</h2>
+    <p class="hint">The full library is loaded: <code>zeta.complex</code>, <code>zeta.gamma</code>,
+      <code>zeta.core</code>, <code>zeta.viz</code>. Try <code>(zeta.core/zeta {:re 2.0 :im 0.0})</code>
+      or <code>(zeta.core/big-z 25.0)</code>.</p>
+    <textarea id="repl-in" spellcheck="false">(zeta.core/zeros 1 30)</textarea>
+    <div class="controls" style="margin-top:8px">
+      <button id="repl-run" disabled>Eval</button>
+    </div>
+    <div id="repl-out">&nbsp;</div>
+  </section>
+</main>
+
+<script type="module">
+const status = document.getElementById('status');
+const buttons = ['sp-draw','sp-anim','cr-draw','dm-draw','zr-find','repl-run']
+  .map(id => document.getElementById(id));
+const $ = id => document.getElementById(id);
+const num = id => parseFloat($(id).value);
+
+let repl = null;
+let animHandle = null;
+
+function setStatus(msg, cls) { status.textContent = msg; status.className = cls || ''; }
+function enable(on) { buttons.forEach(b => b.disabled = !on); }
+async function paint() { await new Promise(r => requestAnimationFrame(r)); }
+
+// Evaluate code in the Clojurust session; returns {output, result} or throws.
+async function ev(code) {
+  const r = await repl.eval(code);
+  if (r.is_error) throw new Error(r.result);
+  return { output: r.output, result: r.result };
+}
+
+// Run an eval while showing a busy status.
+async function busy(label, code) {
+  setStatus(label + '…', 'loading');
+  enable(false);
+  await paint();
+  try {
+    const r = await ev(code);
+    setStatus('ready — Clojurust wasm', 'ready');
+    return r;
+  } catch (e) {
+    setStatus('error: ' + e.message, 'error');
+    throw e;
+  } finally {
+    enable(true);
+  }
+}
+
+// The wasm REPL has no source path, so `(:require ...)` can't load files.
+// Namespaces evaluated earlier in the session ARE resolvable by fully
+// qualified symbols, though.  So: replace the ns form with a bare
+// `(ns name)` and expand each alias prefix (`c/` -> `zeta.complex/`).
+function splitFirstForm(src) {
+  let depth = 0, inStr = false, esc = false, inComment = false, start = -1;
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (inComment) { if (ch === '\n') inComment = false; continue; }
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === '\\') esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === ';') { inComment = true; continue; }
+    if (ch === '"') { inStr = true; continue; }
+    if (ch === '(') { if (depth === 0) start = i; depth++; }
+    else if (ch === ')') {
+      depth--;
+      if (depth === 0) return [src.slice(start, i + 1), src.slice(i + 1)];
+    }
+  }
+  throw new Error('unbalanced parens in source');
+}
+
+function adaptForRepl(src) {
+  const [nsForm, body] = splitFirstForm(src);
+  const nsName = nsForm.match(/\(ns\s+([\w.\-]+)/)[1];
+  let out = body;
+  for (const [, full, alias] of nsForm.matchAll(/\[([\w.\-]+)\s+:as\s+([\w\-]+)\]/g)) {
+    out = out.replace(new RegExp(`(^|[\\s()\\[{])${alias}/`, 'g'), `$1${full}/`);
+  }
+  return `(ns ${nsName})` + out;
+}
+
+async function fetchSource(name) {
+  for (const prefix of ['../src/zeta/', './src/zeta/', '/src/zeta/']) {
+    try {
+      const resp = await fetch(prefix + name);
+      if (resp.ok) return await resp.text();
+    } catch (_) { /* try next */ }
+  }
+  throw new Error('could not fetch src/zeta/' + name +
+    ' — serve the repository root, not just www/');
+}
+
+async function boot() {
+  let init, Repl;
+  try {
+    ({ default: init, Repl } = await import('./pkg/cljrs_wasm.js'));
+    await init();
+  } catch (e) {
+    document.getElementById('setup-help').style.display = 'block';
+    setStatus('wasm bundle missing', 'error');
+    return;
+  }
+  repl = new Repl();
+  const files = ['complex.cljc', 'gamma.cljc', 'core.cljc', 'viz.cljc'];
+  try {
+    for (const f of files) {
+      setStatus('loading ' + f + '…', 'loading');
+      await paint();
+      const src = await fetchSource(f);
+      await ev(adaptForRepl(src));
+    }
+  } catch (e) {
+    setStatus('load failed: ' + e.message, 'error');
+    document.getElementById('repl-out').textContent = String(e);
+    return;
+  }
+  enable(true);
+  setStatus('ready — Clojurust wasm', 'ready');
+}
+
+// ---- spiral -----------------------------------------------------------
+$('sp-draw').onclick = async () => {
+  stopAnim();
+  const { output } = await busy('computing spiral',
+    `(print (zeta.viz/spiral-svg {:t0 ${num('sp-t0')} :t1 ${num('sp-t1')} :samples ${num('sp-n')|0}}))`);
+  $('sp-canvas').innerHTML = output;
+  $('readout').textContent = '';
+};
+
+$('sp-anim').onclick = async () => {
+  stopAnim();
+  const t0 = num('sp-t0'), t1 = num('sp-t1'), n = Math.max(2, num('sp-n')|0);
+  const { output } = await busy('sampling ζ(½+it)',
+    `(print (zeta.viz/points->json (map (fn [p] [(:re p) (:im p)]) (zeta.viz/spiral-points ${t0} ${t1} ${n}))))`);
+  const pts = JSON.parse(output);
+  const W = 720, H = 720;
+  let ext = 1e-6;
+  for (const [x, y] of pts) ext = Math.max(ext, Math.abs(x), Math.abs(y));
+  ext *= 1.08;
+  const k = (0.5 * Math.min(W, H)) / ext;
+  const X = x => W / 2 + k * x, Y = y => H / 2 - k * y;
+  const svgNS = 'http://www.w3.org/2000/svg';
+  $('sp-canvas').innerHTML =
+    `<svg xmlns="${svgNS}" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+       <rect width="${W}" height="${H}" fill="#ffffff"/>
+       <line x1="0" y1="${H/2}" x2="${W}" y2="${H/2}" stroke="#dddddd"/>
+       <line x1="${W/2}" y1="0" x2="${W/2}" y2="${H}" stroke="#dddddd"/>
+       <circle cx="${W/2}" cy="${H/2}" r="4" fill="none" stroke="#000"/>
+       <polyline id="trail" fill="none" stroke="#3366cc" stroke-width="1.4" points=""/>
+       <circle id="dot" r="4" fill="#cc3333" cx="${X(pts[0][0])}" cy="${Y(pts[0][1])}"/>
+     </svg>`;
+  const trail = document.getElementById('trail');
+  const dot = document.getElementById('dot');
+  let i = 0, acc = '';
+  const step = () => {
+    for (let j = 0; j < 3 && i < pts.length; j++, i++) {
+      const [x, y] = pts[i];
+      acc += `${X(x)},${Y(y)} `;
+    }
+    trail.setAttribute('points', acc);
+    const [x, y] = pts[Math.min(i, pts.length - 1)];
+    dot.setAttribute('cx', X(x)); dot.setAttribute('cy', Y(y));
+    const t = t0 + (t1 - t0) * Math.min(i, pts.length - 1) / (pts.length - 1);
+    $('readout').textContent =
+      `t = ${t.toFixed(3)}    ζ(½+it) = ${x.toFixed(4)} ${y < 0 ? '−' : '+'} ${Math.abs(y).toFixed(4)}i    |ζ| = ${Math.hypot(x, y).toFixed(4)}`;
+    if (i < pts.length) animHandle = requestAnimationFrame(step);
+  };
+  animHandle = requestAnimationFrame(step);
+};
+
+function stopAnim() {
+  if (animHandle) { cancelAnimationFrame(animHandle); animHandle = null; }
+}
+$('sp-stop').onclick = stopAnim;
+
+// ---- critical line ----------------------------------------------------
+$('cr-draw').onclick = async () => {
+  const { output } = await busy('computing Z(t)',
+    `(print (zeta.viz/critical-svg {:t0 ${num('cr-t0')} :t1 ${num('cr-t1')} :samples 500}))`);
+  $('cr-canvas').innerHTML = output;
+};
+
+// ---- domain coloring ---------------------------------------------------
+$('dm-draw').onclick = async () => {
+  const n = parseInt($('dm-n').value, 10);
+  const { output } = await busy('rendering ' + n + '×' + n + ' grid',
+    `(print (zeta.viz/domain-svg {:re0 ${num('dm-re0')} :re1 ${num('dm-re1')} :im0 ${num('dm-im0')} :im1 ${num('dm-im1')} :nx ${n} :ny ${n}}))`);
+  $('dm-canvas').innerHTML = output;
+};
+
+// ---- zeros -------------------------------------------------------------
+$('zr-find').onclick = async () => {
+  const { result } = await busy('hunting zeros',
+    `(zeta.core/zeros ${num('zr-t0')} ${num('zr-t1')})`);
+  const ts = (result.match(/[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/g) || []).map(Number);
+  $('zeros-out').textContent = ts.length
+    ? ts.map((t, i) => `#${i + 1}\tρ = ½ + ${t}i`).join('\n')
+    : 'no zeros in range';
+};
+
+// ---- repl --------------------------------------------------------------
+$('repl-run').onclick = async () => {
+  const code = $('repl-in').value;
+  try {
+    const { output, result } = await busy('evaluating', code);
+    $('repl-out').textContent = (output ? output + '\n' : '') + '=> ' + result;
+    $('repl-out').classList.remove('err');
+  } catch (e) {
+    $('repl-out').textContent = String(e.message || e);
+    $('repl-out').classList.add('err');
+  }
+};
+
+boot();
+</script>
+</body>
+</html>
