@@ -138,7 +138,7 @@
                                            (str out
                                                 (polyline (map xy chunk)
                                                           {:stroke (str "hsl(" hue ",75%,45%)")
-                                                           :stroke-width 1.4}))))))))))
+                                                           :stroke-width 1.4})))))))))
          segs (apply str
                      (map-indexed
                       (fn [i line]
