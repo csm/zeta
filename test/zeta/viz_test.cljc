@@ -15,6 +15,21 @@
       (is (str/ends-with? svg "</svg>"))
       (is (pos? (occurrences svg "<polyline"))))))
 
+(deftest spiral-arbitrary-real-part
+  (let [pts (v/spiral-points 0.75 0 4 5)
+        svg (v/spiral-svg {:re 0.75 :t0 0 :t1 4 :samples 5})]
+    (is (= 5 (count pts)))
+    (is (every? #(= 0.75 (:sigma %)) pts))
+    (is (str/includes? svg "&#950;(0.75 + it)"))))
+
+(deftest spiral-multiple-lines
+  (let [svg (v/spiral-svg {:t0 0 :t1 10 :samples 80
+                           :lines [{:re 0.5 :stroke "#111111"}
+                                   {:re 0.75 :stroke "#222222"}]})]
+    (is (str/includes? svg "#111111"))
+    (is (str/includes? svg "#222222"))
+    (is (>= (occurrences svg "<polyline") 2))))
+
 (deftest critical
   (let [svg (v/critical-svg {:t0 0 :t1 30 :samples 300})]
     (is (str/starts-with? svg "<svg"))

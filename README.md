@@ -55,6 +55,10 @@ vanishes and you may see NaN.
 (z/big-z 25.0)                    ;=> Hardy Z(t): real, vanishes at the zeros
 
 (spit "spiral.svg" (v/spiral-svg {:t0 0 :t1 60}))
+(spit "off-critical.svg" (v/spiral-svg {:re 0.75 :t0 0 :t1 60}))
+(spit "multi-spiral.svg"
+      (v/spiral-svg {:lines [{:re 0.5 :t0 0 :t1 60}
+                             {:re 0.75 :t0 0 :t1 60}]}))
 (spit "domain.svg" (v/domain-svg {:re0 -8 :re1 8 :im0 -20 :im1 20}))
 ```
 
@@ -64,7 +68,10 @@ vanishes and you may see NaN.
 complex plane. The curve starts at `ζ(½) ≈ −1.46`, loops around, and
 passes **exactly through the origin** each time `t` hits the imaginary
 part of a nontrivial zero — the crosshair in the middle of the picture.
-Segments are colored by `t`. `critical-svg` shows the same story as
+Pass `:re` (or `:sigma`) to draw `t ↦ ζ(σ + it)` on any vertical line, and
+pass `:lines` with several line option maps to compose multiple spirals into
+one SVG with a shared scale. Segments are colored by `t` for single-line
+plots. `critical-svg` shows the same story as
 Hardy's real function `Z(t)` with the zeros dotted on the axis, and
 `partial-sums-svg` draws the classic unfolding spiral of the Dirichlet
 partial sums.
