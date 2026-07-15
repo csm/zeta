@@ -22,11 +22,11 @@ concurrency:
 
 env:
   BASE_URL: https://zeta.clj.rs
-  DEPLOY_DIR: dist/www
+  DEPLOY_DIR: dist/site
 
 jobs:
   build-and-deploy:
-    name: Build and deploy www/index.html
+    name: Build and deploy wasm example
     runs-on: ubuntu-latest
 
     steps:
@@ -58,10 +58,10 @@ jobs:
         run: |
           set -euxo pipefail
           rm -rf "${DEPLOY_DIR}"
-          mkdir -p "${DEPLOY_DIR}/www" "${DEPLOY_DIR}/src"
-          cp -R www/. "${DEPLOY_DIR}/www/"
-          rm -rf "${DEPLOY_DIR}/www/pkg"
-          cp -R ../clojurust/crates/cljrs-wasm/pkg "${DEPLOY_DIR}/www/pkg"
+          mkdir -p "${DEPLOY_DIR}/src"
+          cp -R www/. "${DEPLOY_DIR}/"
+          rm -rf "${DEPLOY_DIR}/pkg"
+          cp -R ../clojurust/crates/cljrs-wasm/pkg "${DEPLOY_DIR}/pkg"
           cp -R src/zeta "${DEPLOY_DIR}/src/zeta"
 
       - name: Upload packaged site artifact
