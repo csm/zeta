@@ -1,0 +1,83 @@
+name: Deploy wasm example
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy-wasm.yml
+      - src/**
+      - www/**
+      - cljrs.edn
+      - deps.edn
+      - main.cljrs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-wasm-example
+  cancel-in-progress: false
+
+env:
+  BASE_URL: https://zeta.clj.rs
+  DEPLOY_DIR: dist/site
+
+jobs:
+  build-and-deploy:
+    name: Build and deploy wasm example
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out zeta
+        uses: actions/checkout@v4
+        with:
+          path: zeta
+
+      - name: Check out Clojurust
+        uses: actions/checkout@v4
+        with:
+          repository: csm/clojurust
+          path: clojurust
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        uses: taiki-e/install-action@wasm-pack
+
+      - name: Build Clojurust wasm package
+        working-directory: clojurust
+        run: wasm-pack build crates/cljrs-wasm --target web --release
+
+      - name: Package web assets
+        working-directory: zeta
+        run: |
+          set -euxo pipefail
+          rm -rf "${DEPLOY_DIR}"
+          mkdir -p "${DEPLOY_DIR}/src"
+          cp -R www/. "${DEPLOY_DIR}/"
+          rm -rf "${DEPLOY_DIR}/pkg"
+          cp -R ../clojurust/crates/cljrs-wasm/pkg "${DEPLOY_DIR}/pkg"
+          cp -R src/zeta "${DEPLOY_DIR}/src/zeta"
+
+      - name: Upload packaged site artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zeta-wasm-site
+          path: zeta/${{ env.DEPLOY_DIR }}/
+          if-no-files-found: error
+
+      - name: Deploy to SFTP host
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.6
+        with:
+          server: ${{ secrets.SFTP_HOST }}
+          port: ${{ secrets.SFTP_PORT }}
+          username: ${{ secrets.SFTP_USERNAME }}
+          password: ${{ secrets.SFTP_PASSWORD }}
+          local_path: zeta/${{ env.DEPLOY_DIR }}/*
+          remote_path: ${{ secrets.SFTP_REMOTE_PATH }}
+          sftp_only: true
