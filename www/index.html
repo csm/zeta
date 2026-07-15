@@ -93,6 +93,11 @@
   #status { font-size: 12px; color: var(--status); margin-left: auto; }
   #status.ready { color: var(--ready); }
   #status.error { color: var(--error); }
+  .activity { display: none; align-items: center; gap: 8px; font-size: 12px; color: var(--status); }
+  .activity.active { display: flex; }
+  .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--status); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #progress { width: 130px; height: 8px; accent-color: var(--accent); }
   .theme-picker { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--label); }
   .theme-picker select {
     background: var(--input-bg); color: var(--text); border: 1px solid var(--input-border);
@@ -140,6 +145,10 @@
   <h1>&zeta;(s) explorer</h1>
   <span class="sub">Riemann zeta &middot; analytic continuation &middot; running as Clojure on Clojurust/wasm</span>
   <span id="status">loading wasm&hellip;</span>
+  <span id="activity" class="activity" aria-live="polite">
+    <span class="spinner" aria-hidden="true"></span>
+    <progress id="progress"></progress>
+  </span>
   <label class="theme-picker">theme
     <select id="theme-mode" aria-label="Color theme">
       <option value="auto">Auto</option>
@@ -242,111 +251,89 @@ const buttons = ['sp-draw','sp-anim','cr-draw','dm-draw','zr-find','repl-run']
   .map(id => document.getElementById(id));
 const $ = id => document.getElementById(id);
 const num = id => parseFloat($(id).value);
+const activity = $('activity');
+const progress = $('progress');
 
-let repl = null;
+let worker = null;
+let workerReady = false;
+let nextJobId = 1;
 let animHandle = null;
+const pending = new Map();
 
 function setStatus(msg, cls) { status.textContent = msg; status.className = cls || ''; }
-function enable(on) { buttons.forEach(b => b.disabled = !on); }
-async function paint() { await new Promise(r => requestAnimationFrame(r)); }
-
-// Evaluate code in the Clojurust session; returns {output, result} or throws.
-async function ev(code) {
-  const r = await repl.eval(code);
-  if (r.is_error) throw new Error(r.result);
-  return { output: r.output, result: r.result };
+function enable(on) { buttons.forEach(b => b.disabled = !on || !workerReady); $('sp-stop').disabled = !animHandle; }
+function setActivity(on, value = null, max = null) {
+  activity.classList.toggle('active', on);
+  if (!on || value === null || max === null) {
+    progress.removeAttribute('value');
+    progress.removeAttribute('max');
+  } else {
+    progress.max = max;
+    progress.value = value;
+  }
 }
 
-// Run an eval while showing a busy status.
+function ev(code) {
+  if (!workerReady) return Promise.reject(new Error('worker is not ready yet'));
+  const id = nextJobId++;
+  worker.postMessage({ type: 'eval', id, code });
+  return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+}
+
 async function busy(label, code) {
   setStatus(label + '…', 'loading');
+  setActivity(true);
   enable(false);
-  await paint();
   try {
     const r = await ev(code);
-    setStatus('ready — Clojurust wasm', 'ready');
+    setStatus('ready — Clojurust wasm worker', 'ready');
     return r;
   } catch (e) {
     setStatus('error: ' + e.message, 'error');
     throw e;
   } finally {
+    setActivity(false);
     enable(true);
   }
 }
 
-// The wasm REPL has no source path, so `(:require ...)` can't load files.
-// Namespaces evaluated earlier in the session ARE resolvable by fully
-// qualified symbols, though.  So: replace the ns form with a bare
-// `(ns name)` and expand each alias prefix (`c/` -> `zeta.complex/`).
-function splitFirstForm(src) {
-  let depth = 0, inStr = false, esc = false, inComment = false, start = -1;
-  for (let i = 0; i < src.length; i++) {
-    const ch = src[i];
-    if (inComment) { if (ch === '\n') inComment = false; continue; }
-    if (inStr) {
-      if (esc) esc = false;
-      else if (ch === '\\') esc = true;
-      else if (ch === '"') inStr = false;
-      continue;
-    }
-    if (ch === ';') { inComment = true; continue; }
-    if (ch === '"') { inStr = true; continue; }
-    if (ch === '(') { if (depth === 0) start = i; depth++; }
-    else if (ch === ')') {
-      depth--;
-      if (depth === 0) return [src.slice(start, i + 1), src.slice(i + 1)];
-    }
-  }
-  throw new Error('unbalanced parens in source');
-}
-
-function adaptForRepl(src) {
-  const [nsForm, body] = splitFirstForm(src);
-  const nsName = nsForm.match(/\(ns\s+([\w.\-]+)/)[1];
-  let out = body;
-  for (const [, full, alias] of nsForm.matchAll(/\[([\w.\-]+)\s+:as\s+([\w\-]+)\]/g)) {
-    out = out.replace(new RegExp(`(^|[\\s()\\[{])${alias}/`, 'g'), `$1${full}/`);
-  }
-  return `(ns ${nsName})` + out;
-}
-
-async function fetchSource(name) {
-  for (const prefix of ['../src/zeta/', './src/zeta/', '/src/zeta/']) {
-    try {
-      const resp = await fetch(prefix + name);
-      if (resp.ok) return await resp.text();
-    } catch (_) { /* try next */ }
-  }
-  throw new Error('could not fetch src/zeta/' + name +
-    ' — serve the repository root, not just www/');
-}
-
-async function boot() {
-  let init, Repl;
-  try {
-    ({ default: init, Repl } = await import('./pkg/cljrs_wasm.js'));
-    await init();
-  } catch (e) {
+function handleWorkerMessage(event) {
+  const msg = event.data;
+  if (msg.type === 'status') {
+    setStatus(msg.message, 'loading');
+    setActivity(true);
+  } else if (msg.type === 'progress') {
+    setStatus(msg.message, 'loading');
+    setActivity(true, msg.value, msg.max);
+  } else if (msg.type === 'ready') {
+    workerReady = true;
+    setActivity(false);
+    enable(true);
+    setStatus('ready — Clojurust wasm worker', 'ready');
+  } else if (msg.type === 'boot-error') {
+    setActivity(false);
     document.getElementById('setup-help').style.display = 'block';
-    setStatus('wasm bundle missing', 'error');
-    return;
+    setStatus('wasm worker failed: ' + msg.message, 'error');
+    $('repl-out').textContent = msg.message;
+  } else if (msg.type === 'result' || msg.type === 'error') {
+    const job = pending.get(msg.id);
+    if (!job) return;
+    pending.delete(msg.id);
+    if (msg.type === 'result') job.resolve({ output: msg.output, result: msg.result });
+    else job.reject(new Error(msg.message));
   }
-  repl = new Repl();
-  const files = ['complex.cljc', 'gamma.cljc', 'core.cljc', 'viz.cljc'];
-  try {
-    for (const f of files) {
-      setStatus('loading ' + f + '…', 'loading');
-      await paint();
-      const src = await fetchSource(f);
-      await ev(adaptForRepl(src));
-    }
-  } catch (e) {
-    setStatus('load failed: ' + e.message, 'error');
-    document.getElementById('repl-out').textContent = String(e);
-    return;
-  }
-  enable(true);
-  setStatus('ready — Clojurust wasm', 'ready');
+}
+
+function boot() {
+  setActivity(true);
+  enable(false);
+  worker = new Worker('./worker.js', { type: 'module' });
+  worker.onmessage = handleWorkerMessage;
+  worker.onerror = event => {
+    setActivity(false);
+    document.getElementById('setup-help').style.display = 'block';
+    setStatus('wasm worker failed: ' + event.message, 'error');
+  };
 }
 
 // ---- spiral -----------------------------------------------------------
@@ -394,13 +381,20 @@ $('sp-anim').onclick = async () => {
     const t = t0 + (t1 - t0) * Math.min(i, pts.length - 1) / (pts.length - 1);
     $('readout').textContent =
       `t = ${t.toFixed(3)}    ζ(½+it) = ${x.toFixed(4)} ${y < 0 ? '−' : '+'} ${Math.abs(y).toFixed(4)}i    |ζ| = ${Math.hypot(x, y).toFixed(4)}`;
-    if (i < pts.length) animHandle = requestAnimationFrame(step);
+    if (i < pts.length) {
+      animHandle = requestAnimationFrame(step);
+      $('sp-stop').disabled = false;
+    } else {
+      animHandle = null;
+      enable(true);
+    }
   };
   animHandle = requestAnimationFrame(step);
 };
 
 function stopAnim() {
   if (animHandle) { cancelAnimationFrame(animHandle); animHandle = null; }
+  enable(true);
 }
 $('sp-stop').onclick = stopAnim;
 
