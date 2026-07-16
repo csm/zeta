@@ -186,16 +186,25 @@
 ;; ---------------------------------------------------------------------------
 
 (defn critical-svg
-  "SVG plot of Hardy's Z(t) (blue) and |zeta(1/2+it)| (grey) for t in
-  [t0, t1], with the located zeros marked on the axis.
+  "SVG plot of Hardy's Z(t) (blue) and |zeta(sigma+it)| (grey) for t in
+  [t0, t1], with the critical-line zeros marked on the axis.
+
+  The default sigma = 1/2 is the classical critical line, where |Z(t)|
+  matches the grey envelope and the zero markers sit exactly on Z's sign
+  changes.  Pass :re (or :sigma) to shift the line; the envelope and Z
+  curve move but the zero markers still show the critical-line zeros for
+  reference, and default off unless requested explicitly.
 
   Options: :t0 :t1 (default 0..60), :samples (default 1200),
-  :width :height (default 900x360), :mark-zeros? (default true)."
+  :width :height (default 900x360), :re/:sigma (default 1/2),
+  :mark-zeros? (default true on the critical line, false off it)."
   ([] (critical-svg {}))
-  ([{:keys [t0 t1 samples width height mark-zeros?]
-     :or {t0 0.0 t1 60.0 samples 1200 width 900 height 360 mark-zeros? true}}]
-   (let [ts (linspace (max 0.05 t0) t1 samples)
-         zs (mapv z/big-z ts)
+  ([{:keys [t0 t1 samples width height mark-zeros? sigma re]
+     :or {t0 0.0 t1 60.0 samples 1200 width 900 height 360}}]
+   (let [sigma (if (not (nil? sigma)) sigma (if (not (nil? re)) re 0.5))
+         mark-zeros? (if (not (nil? mark-zeros?)) mark-zeros? (= sigma 0.5))
+         ts (linspace (max 0.05 t0) t1 samples)
+         zs (mapv #(z/big-z % sigma) ts)
          mag (mapv #(Math/abs (double %)) zs)
          top (reduce max 1.0 (map #(min (Math/abs (double %)) 25.0) zs))
          top (* 1.1 top)
@@ -224,9 +233,9 @@
                           (or zeros [])))
               (tag "text" {:x (fmt pad-l) :y (fmt (- height 8))
                            :font-family "sans-serif" :font-size 12 :style "fill:var(--chart-text,#555555)"}
-                   (str "Z(t) on t &#8712; [" (fmt t0) ", " (fmt t1) "]"
+                   (str "Z(t) at Re(s) = " (fmt sigma) ", t &#8712; [" (fmt t0) ", " (fmt t1) "]"
                         (if (seq zeros)
-                          (str " — " (count zeros) " zeros marked")
+                          (str " — " (count zeros) " critical-line zeros marked")
                           "")))))))
 
 ;; ---------------------------------------------------------------------------

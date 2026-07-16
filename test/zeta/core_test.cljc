@@ -59,7 +59,16 @@
              1.0e-10))))
   (testing "Riemann-Siegel agrees with eta-based Z at moderate height"
     (doseq [t [100.0 250.0 340.0]]
-      (is (< (Math/abs (- (z/riemann-siegel-z t) (z/big-z t))) 0.05)))))
+      (is (< (Math/abs (- (z/riemann-siegel-z t) (z/big-z t))) 0.05))))
+  (testing "big-z defaults its second arg to sigma = 1/2"
+    (doseq [t [5.0 20.0 33.3]]
+      (is (= (z/big-z t) (z/big-z t 0.5)))))
+  (testing "off the critical line, Z(t) = Re(e^(i theta(t)) zeta(sigma+it))"
+    (doseq [sigma [0.75 1.0 0.3] t [5.0 20.0 33.3]]
+      (let [zt (z/zeta (c/complex sigma t))
+            th (z/theta t)
+            expected (- (* (Math/cos th) (:re zt)) (* (Math/sin th) (:im zt)))]
+        (is (< (Math/abs (- (z/big-z t sigma) expected)) 1.0e-10))))))
 
 (deftest zero-finding
   (testing "first five nontrivial zeros"

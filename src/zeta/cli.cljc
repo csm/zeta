@@ -8,11 +8,11 @@
     value RE [IM]                  zeta(s) at s = RE + IM*i
     eta RE [IM]                    Dirichlet eta at s
     gamma RE [IM]                  Gamma(s)
-    z T                            Hardy Z(T)
+    z T [RE]                       Hardy Z(T) at Re(s) = RE (default 0.5)
     theta T                        Riemann-Siegel theta(T)
     zeros T0 T1 [STEP]             critical-line zeros with Im in [T0,T1]
-    spiral T0 T1 [FILE.svg]        the zeta(1/2+it) spiral
-    critical T0 T1 [FILE.svg]      Z(t) + |zeta| plot with zeros marked
+    spiral T0 T1 [FILE.svg] [RE]   the zeta(RE+it) spiral (RE default 0.5)
+    critical T0 T1 [FILE.svg] [RE] Z(t) + |zeta| plot at Re(s) = RE (default 0.5)
     domain RE0 RE1 IM0 IM1 [FILE.svg] [N]   domain coloring (N x N grid)
     psums T N [FILE.svg]           partial-sum spiral at s = 1/2 + iT
     help                           this text
@@ -52,11 +52,11 @@
        "  value RE [IM]                zeta(RE + IM*i)\n"
        "  eta RE [IM]                  Dirichlet eta\n"
        "  gamma RE [IM]                Gamma function\n"
-       "  z T                          Hardy Z(T)\n"
+       "  z T [RE]                     Hardy Z(T) at Re(s)=RE (default 0.5)\n"
        "  theta T                      Riemann-Siegel theta(T)\n"
        "  zeros T0 T1 [STEP]           critical-line zeros\n"
-       "  spiral T0 T1 [FILE.svg]      zeta(1/2+it) spiral\n"
-       "  critical T0 T1 [FILE.svg]    Z(t) plot with zeros\n"
+       "  spiral T0 T1 [FILE.svg] [RE] zeta(RE+it) spiral (RE default 0.5)\n"
+       "  critical T0 T1 [FILE.svg] [RE] Z(t) plot at Re(s)=RE (default 0.5)\n"
        "  domain RE0 RE1 IM0 IM1 [FILE.svg] [N]  domain coloring\n"
        "  psums T N [FILE.svg]         partial-sum spiral\n"))
 
@@ -75,7 +75,7 @@
       (println (complex-str (g/gamma (c/complex (num 0) (if (arg 1) (num 1) 0.0)))))
 
       "z"
-      (println (z/big-z (num 0)))
+      (println (z/big-z (num 0) (if (arg 1) (num 1) 0.5)))
 
       "theta"
       (println (z/theta (num 0)))
@@ -87,10 +87,10 @@
         (println ";" (count zs) "zeros"))
 
       "spiral"
-      (emit (v/spiral-svg {:t0 (num 0) :t1 (num 1)}) (arg 2))
+      (emit (v/spiral-svg {:t0 (num 0) :t1 (num 1) :re (if (arg 3) (num 3) 0.5)}) (arg 2))
 
       "critical"
-      (emit (v/critical-svg {:t0 (num 0) :t1 (num 1)}) (arg 2))
+      (emit (v/critical-svg {:t0 (num 0) :t1 (num 1) :re (if (arg 3) (num 3) 0.5)}) (arg 2))
 
       "domain"
       (let [n (if (arg 5) (int (->num (arg 5))) 96)]
