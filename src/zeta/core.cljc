@@ -133,12 +133,13 @@
        (/ 7.0 (* 5760.0 t t t)))))
 
 (defn- z-via-eta
-  "Z(t) = Re(e^(i theta(t)) zeta(1/2 + it)), accurate while Borwein holds."
-  [t]
-  (let [zt (zeta-critical t)
-        th (theta t)]
-    (- (* (Math/cos th) (:re zt))
-       (* (Math/sin th) (:im zt)))))
+  "Z(t) = Re(e^(i theta(t)) zeta(sigma + it)), accurate while Borwein holds."
+  ([t] (z-via-eta t 0.5))
+  ([t sigma]
+   (let [zt (zeta (c/complex sigma t))
+         th (theta t)]
+     (- (* (Math/cos th) (:re zt))
+        (* (Math/sin th) (:im zt))))))
 
 (defn riemann-siegel-z
   "Riemann-Siegel formula for Z(t): main sum plus the first (C0) remainder
@@ -164,14 +165,21 @@
     (+ main r)))
 
 (defn big-z
-  "Hardy's Z function: real-valued on the real line, |Z(t)| = |zeta(1/2+it)|,
-  and Z changes sign exactly at the critical-line zeros.  Uses the accurate
-  eta-based evaluation up to t = 340, Riemann-Siegel beyond."
-  [t]
-  (let [at (Math/abs (double t))]
-    (if (<= at 340.0)
-      (z-via-eta at)
-      (riemann-siegel-z at))))
+  "Hardy's Z function: Z(t) = Re(e^(i theta(t)) zeta(sigma+it)).  At the
+  default sigma = 1/2 this is the classical Hardy Z — real-valued, with
+  |Z(t)| = |zeta(1/2+it)| and sign changes exactly at the critical-line
+  zeros.  Off the critical line it's still real-valued (handy for
+  comparison plots) but those two identities no longer hold.
+
+  Uses the accurate eta-based evaluation up to t = 340 on the critical
+  line, Riemann-Siegel beyond (that formula is specific to sigma = 1/2);
+  off the critical line the eta-based evaluation is used throughout."
+  ([t] (big-z t 0.5))
+  ([t sigma]
+   (let [at (Math/abs (double t))]
+     (if (and (= sigma 0.5) (> at 340.0))
+       (riemann-siegel-z at)
+       (z-via-eta at sigma)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Zeros on the critical line

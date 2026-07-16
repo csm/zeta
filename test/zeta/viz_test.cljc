@@ -35,7 +35,18 @@
     (is (str/starts-with? svg "<svg"))
     ;; three zeros below t=30, each marked with a circle (plus none extra
     ;; beyond origin/start/end markers used by other plots)
-    (is (>= (occurrences svg "<circle") 3))))
+    (is (>= (occurrences svg "<circle") 3))
+    (is (str/includes? svg "Re(s) = 0.5"))))
+
+(deftest critical-arbitrary-real-part
+  (let [svg (v/critical-svg {:re 0.75 :t0 0 :t1 30 :samples 300})]
+    (is (str/starts-with? svg "<svg"))
+    (is (str/includes? svg "Re(s) = 0.75"))
+    ;; off the critical line, zero markers default to off
+    (is (zero? (occurrences svg "<circle")))
+    (testing "explicit :mark-zeros? true still marks the critical-line zeros"
+      (let [svg (v/critical-svg {:re 0.75 :t0 0 :t1 30 :samples 300 :mark-zeros? true})]
+        (is (>= (occurrences svg "<circle") 3))))))
 
 (deftest domain
   (let [nx 8 ny 6
