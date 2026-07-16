@@ -24,7 +24,7 @@
     --button-bg: #2d4f6b;
     --button-hover: #38648a;
     --button-text: #e8e8e8;
-    --canvas-bg: #ffffff;
+    --canvas-bg: var(--input-bg);
     --help-bg: #2a2020;
     --help-border: #6b3b3b;
     --code: #ce9178;
@@ -47,7 +47,6 @@
     --button-bg: #268bd2;
     --button-hover: #2aa198;
     --button-text: #fdf6e3;
-    --canvas-bg: #fffdf4;
     --help-bg: #f5e7d0;
     --help-border: #cb4b16;
     --code: #cb4b16;
@@ -72,11 +71,30 @@
       --button-bg: #268bd2;
       --button-hover: #2aa198;
       --button-text: #fdf6e3;
-      --canvas-bg: #fffdf4;
       --help-bg: #f5e7d0;
       --help-border: #cb4b16;
       --code: #cb4b16;
     }
+  }
+  :root {
+    /* Chart colors alias the theme palette above, so SVGs injected
+       inline (spiral/critical/domain/partial-sums) follow the active
+       theme automatically without any redraw logic. */
+    --chart-bg: var(--canvas-bg);
+    --chart-grid: var(--border);
+    --chart-axis: var(--text);
+    --chart-text: var(--muted);
+    --chart-zero: var(--error);
+    --chart-strong: var(--title);
+    --chart-envelope: var(--label);
+    --chart-accent: var(--accent);
+    --chart-start: var(--ready);
+    --chart-1: var(--title);
+    --chart-2: var(--code);
+    --chart-3: var(--ready);
+    --chart-4: var(--accent);
+    --chart-5: var(--status);
+    --chart-6: var(--error);
   }
   body {
     background: var(--page-bg); color: var(--text);
@@ -398,12 +416,12 @@ $('sp-anim').onclick = async () => {
   const svgNS = 'http://www.w3.org/2000/svg';
   $('sp-canvas').innerHTML =
     `<svg xmlns="${svgNS}" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-       <rect width="${W}" height="${H}" fill="#ffffff"/>
-       <line x1="0" y1="${H/2}" x2="${W}" y2="${H/2}" stroke="#dddddd"/>
-       <line x1="${W/2}" y1="0" x2="${W/2}" y2="${H}" stroke="#dddddd"/>
-       <circle cx="${W/2}" cy="${H/2}" r="4" fill="none" stroke="#000"/>
-       <polyline id="trail" fill="none" stroke="#3366cc" stroke-width="1.4" points=""/>
-       <circle id="dot" r="4" fill="#cc3333" cx="${X(pts[0][0])}" cy="${Y(pts[0][1])}"/>
+       <rect width="${W}" height="${H}" style="fill:var(--chart-bg,#ffffff)"/>
+       <line x1="0" y1="${H/2}" x2="${W}" y2="${H/2}" style="stroke:var(--chart-grid,#dddddd)"/>
+       <line x1="${W/2}" y1="0" x2="${W/2}" y2="${H}" style="stroke:var(--chart-grid,#dddddd)"/>
+       <circle cx="${W/2}" cy="${H/2}" r="4" fill="none" style="stroke:var(--chart-axis,#000)"/>
+       <polyline id="trail" fill="none" style="stroke:var(--chart-1,#3366cc)" stroke-width="1.4" points=""/>
+       <circle id="dot" r="4" style="fill:var(--chart-zero,#cc3333)" cx="${X(pts[0][0])}" cy="${Y(pts[0][1])}"/>
      </svg>`;
   const trail = document.getElementById('trail');
   const dot = document.getElementById('dot');

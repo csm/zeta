@@ -124,7 +124,8 @@
          ->x (fn [re] (+ cx (* k re)))
          ->y (fn [im] (- cy (* k im)))
          xy (fn [p] [(->x (:re p)) (->y (:im p))])
-         palette ["#3366cc" "#cc6633" "#22aa66" "#aa44cc" "#ddaa22" "#cc3355"]
+         palette ["var(--chart-1,#3366cc)" "var(--chart-2,#cc6633)" "var(--chart-3,#22aa66)"
+                   "var(--chart-4,#aa44cc)" "var(--chart-5,#ddaa22)" "var(--chart-6,#cc3355)"]
          render-rainbow (fn [pts samples]
                           (let [buckets 72
                                 per (max 2 (int (Math/ceil (/ (double samples) buckets))))]
@@ -150,7 +151,7 @@
                               stroke (or (:stroke line) (nth palette (mod i (count palette))))]
                           (if rainbow-line?
                             (render-rainbow pts (:samples line))
-                            (polyline (map xy pts) {:stroke stroke :stroke-width 1.4}))))
+                            (polyline (map xy pts) {:style (str "stroke:" stroke) :stroke-width 1.4}))))
                       lines*))
          markers (apply str
                         (map-indexed
@@ -159,24 +160,24 @@
                                  stroke (or (:stroke line) (nth palette (mod i (count palette))))
                                  p0 (xy (first pts)) p1 (xy (last pts))]
                              (str (tag "circle" {:cx (fmt (first p0)) :cy (fmt (second p0))
-                                                 :r 3.5 :fill stroke})
+                                                 :r 3.5 :style (str "fill:" stroke)})
                                   (tag "circle" {:cx (fmt (first p1)) :cy (fmt (second p1))
-                                                 :r 3.5 :fill "#cc3333"}))))
+                                                 :r 3.5 :style "fill:var(--chart-zero,#cc3333)"}))))
                          lines*))
          labels (join-str ", " (map :label lines*))]
      (svg-doc width height
-              (tag "rect" {:x 0 :y 0 :width width :height height :fill "#ffffff"})
+              (tag "rect" {:x 0 :y 0 :width width :height height :style "fill:var(--chart-bg,#ffffff)"})
               (tag "line" {:x1 0 :y1 (fmt cy) :x2 width :y2 (fmt cy)
-                           :stroke "#cccccc" :stroke-width 1})
+                           :style "stroke:var(--chart-grid,#cccccc)" :stroke-width 1})
               (tag "line" {:x1 (fmt cx) :y1 0 :x2 (fmt cx) :y2 height
-                           :stroke "#cccccc" :stroke-width 1})
+                           :style "stroke:var(--chart-grid,#cccccc)" :stroke-width 1})
               (tag "circle" {:cx (fmt cx) :cy (fmt cy) :r 4
-                             :fill "none" :stroke "#000000" :stroke-width 1.2})
-              (tag "circle" {:cx (fmt cx) :cy (fmt cy) :r 1.2 :fill "#000000"})
+                             :fill "none" :style "stroke:var(--chart-axis,#000000)" :stroke-width 1.2})
+              (tag "circle" {:cx (fmt cx) :cy (fmt cy) :r 1.2 :style "fill:var(--chart-axis,#000000)"})
               segs
               markers
               (tag "text" {:x 10 :y 22 :font-family "sans-serif" :font-size 13
-                           :fill "#555555"}
+                           :style "fill:var(--chart-text,#555555)"}
                    (str labels ",  t &#8712; [" (fmt t0) ", " (fmt t1) "]"))))))
 
 
@@ -206,23 +207,23 @@
          axis-y (->y 0.0)
          zeros (when mark-zeros? (z/zeros (max 1.0 t0) t1))]
      (svg-doc width height
-              (tag "rect" {:x 0 :y 0 :width width :height height :fill "#ffffff"})
+              (tag "rect" {:x 0 :y 0 :width width :height height :style "fill:var(--chart-bg,#ffffff)"})
               (tag "line" {:x1 (fmt pad-l) :y1 (fmt axis-y)
                            :x2 (fmt (- width pad-r)) :y2 (fmt axis-y)
-                           :stroke "#bbbbbb" :stroke-width 1})
+                           :style "stroke:var(--chart-grid,#bbbbbb)" :stroke-width 1})
               ;; |zeta| envelope
               (polyline (map (fn [t m] [(->x t) (->y m)]) ts mag)
-                        {:stroke "#c9c9c9" :stroke-width 1})
+                        {:style "stroke:var(--chart-envelope,#c9c9c9)" :stroke-width 1})
               ;; Z(t)
               (polyline (map (fn [t v] [(->x t) (->y v)]) ts zs)
-                        {:stroke "#2255bb" :stroke-width 1.5})
+                        {:style "stroke:var(--chart-strong,#2255bb)" :stroke-width 1.5})
               (apply str
                      (map (fn [t]
                             (tag "circle" {:cx (fmt (->x t)) :cy (fmt axis-y)
-                                           :r 3 :fill "#cc3333"}))
+                                           :r 3 :style "fill:var(--chart-zero,#cc3333)"}))
                           (or zeros [])))
               (tag "text" {:x (fmt pad-l) :y (fmt (- height 8))
-                           :font-family "sans-serif" :font-size 12 :fill "#555555"}
+                           :font-family "sans-serif" :font-size 12 :style "fill:var(--chart-text,#555555)"}
                    (str "Z(t) on t &#8712; [" (fmt t0) ", " (fmt t1) "]"
                         (if (seq zeros)
                           (str " — " (count zeros) " zeros marked")
@@ -310,12 +311,12 @@
          ->x (fn [x] (+ (* 0.5 width) (* k (- x cx))))
          ->y (fn [y] (- (* 0.5 height) (* k (- y cy))))]
      (svg-doc width height
-              (tag "rect" {:x 0 :y 0 :width width :height height :fill "#ffffff"})
+              (tag "rect" {:x 0 :y 0 :width width :height height :style "fill:var(--chart-bg,#ffffff)"})
               (polyline (map (fn [x y] [(->x x) (->y y)]) xs ys)
-                        {:stroke "#7733aa" :stroke-width 1.1})
+                        {:style "stroke:var(--chart-accent,#7733aa)" :stroke-width 1.1})
               (tag "circle" {:cx (fmt (->x 0.0)) :cy (fmt (->y 0.0)) :r 3
-                             :fill "#22aa44"})
+                             :style "fill:var(--chart-start,#22aa44)"})
               (tag "text" {:x 10 :y 22 :font-family "sans-serif" :font-size 13
-                           :fill "#555555"}
+                           :style "fill:var(--chart-text,#555555)"}
                    (str "Partial sums of &#931; k^(-s), s = "
                         (fmt (:re s)) " + " (fmt (:im s)) "i, n = " n))))))
